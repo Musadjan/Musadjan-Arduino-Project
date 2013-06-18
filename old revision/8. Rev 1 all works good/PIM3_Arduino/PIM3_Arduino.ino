@@ -36,12 +36,12 @@ const int DIR_B=23;
 const int PWM_B=10;   // -----------------------------------PWM output to motor B------------
 
 // ---------------IO power and start-point switch---
-const int power_off=4;
-const int start_point_switch=7;
-const int switch_for_hand_grip=5;
-const int up_button=12;   // Up button
-const int down_button=11; // down button
-const int cal_button=8; // calibrate the hand guide to start position
+const int Set_status=4;                               // used to write and read the hall hall_A1_counter value in the EEPROM
+const int start_point_switch=7;                      // as start point for motion. it used to calibare to zero position the lift actuators.
+const int switch_for_hand_grip=5;                    // it is not used for now. 
+const int up_button=12;                             // Up button
+const int down_button=11;                           // down button
+const int cal_button=8;                             // calibrate the hand guide to start position
 
 //---------------motor C I/O for hand grip-----------
 const int DIR_C=50;
@@ -49,6 +49,10 @@ const int PWM_C=6;
 const int Max_speed_h=200; // maximum speed of hand grip          //----------------------------------------------Speed hand grip
 const int i=200;
 const int Max_speed_lift=255; // maximum speed for lift and down //-----------------------------------------------Speed lift or lower
+//---------------LED output-----------------------------
+const int LED_low=24;
+const int LED_midle=26;
+const int LED_high=28;
 //-----------------
 const int hallPinA_1 = 2;     // A_the number of the hall effect sensor pin
 const int hallPinA_2 = 3;    //// A_the number of the hall effect sensor pin, it is digital input only referens direction
@@ -77,7 +81,15 @@ enum my_position {
 
 enum my_position my_current_position;
 
+char stop_posion[] = "arduino";
 
+enum stop_position {
+  stop_position_low,
+  stop_position_midle,
+  stop_position_high,
+};
+
+enum stop_position my_stop_position;
 
 /////////////////////////////////////
 
@@ -89,6 +101,7 @@ int sensorPin = A0;    // select the input pin for the potentiometer
 int sensorValue = 0;  // variable to store the value coming from the sensor
 int stop_position=100;//---------------------------------------------------------------Stop position----------------------------------------------------
 int button_check=0;
+int set_status=0;
 
 void setup()
 {
@@ -107,7 +120,10 @@ void setup()
   pinMode(PWM_C, OUTPUT);
   pinMode(start_point_switch,INPUT);
   pinMode(switch_for_hand_grip,INPUT);
-  pinMode(power_off,INPUT);
+  pinMode(Set_status,INPUT);
+  pinMode(LED_low, OUTPUT);
+  pinMode(LED_midle,OUTPUT);
+  pinMode(LED_high,OUTPUT);
   //value= EEPROM.read(address);
    hall_A1_counter=EEPROMReadInt(0);
         // leave other bits as set by arduino init() in wiring.c
@@ -138,10 +154,19 @@ void loop()
   float handguide_position = sensorValue/4;  // maps 0-1024 to 0-256   value from potentiometer
   int dada=digitalRead(switch_for_hand_grip);
   
-  if (digitalRead(power_off)==HIGH)  {
-    EEPROMWriteInt(0, hall_A1_counter);
+  
+  if (digitalRead(Set_status)==HIGH)  {
+    set_status++;
     delay(300);
   }
+  
+  if(set_status=0) { my_stop_position==stop_position_low; digitalWrite(LED_low,HIGH); }
+  if(set_status=1) { my_stop_position==stop_position_midle; digitalWrite(LED_midle,HIGH);}
+  if(set_status=2) { my_stop_position==stop_position_high; digitalWrite(LED_high,HIGH);} 
+//  if (digitalRead(Set_status)==HIGH)  {
+//    EEPROMWriteInt(0, hall_A1_counter);
+//    delay(300);
+//  }
   
     //--------------------------------calibration Routin Start here------------------------------------------------------
                                                if(calibrate==HIGH) 
@@ -329,6 +354,31 @@ void loop()
           if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
           if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
           if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
+          
+          switch (my_stop_position) {
+            case stop_position_low:
+                  stop_position=100;
+                  if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
+                  if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
+                  if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
+             break;
+             case stop_position_midle:
+                  if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
+                  if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
+                  if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
+                 stop_position=110;
+             break;
+             case stop_position_high:
+                 stop_position=120;
+                 if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
+                 if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
+                 if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
+             break;
+            
+            default:    // 
+                      
+                      break;
+                                              }
           
  //delay(20);              
 //Serial.println(hall_A1_counter);       

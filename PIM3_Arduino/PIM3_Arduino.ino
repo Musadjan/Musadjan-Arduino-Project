@@ -156,8 +156,11 @@ void loop()
   
   
   if (digitalRead(Set_status)==HIGH)  {
-    set_status++;
     delay(300);
+    set_status++;
+    while(digitalRead(Set_status)==LOW)
+    if (status>=3) set_status=0; 
+    
   }
   
   if(set_status=0) { my_stop_position==stop_position_low; digitalWrite(LED_low,HIGH); }

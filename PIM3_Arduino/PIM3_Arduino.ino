@@ -1,4 +1,4 @@
-
+#include <Bounce.h>
 #include <EEPROM.h>
 #include "EEPROMAnything.h"
 //om the first byte (address 0) of the EEPROM
@@ -36,23 +36,22 @@ const int DIR_B=23;
 const int PWM_B=10;   // -----------------------------------PWM output to motor B------------
 
 // ---------------IO power and start-point switch---
-const int Set_status=4;                               // used to write and read the hall hall_A1_counter value in the EEPROM
-const int start_point_switch=7;                      // as start point for motion. it used to calibare to zero position the lift actuators.
-const int switch_for_hand_grip=5;                    // it is not used for now. 
-const int up_button=12;                             // Up button
-const int down_button=11;                           // down button
-const int cal_button=8;                             // calibrate the hand guide to start position
-
+const int power_off=4;
+const int start_point_switch_L=7;
+const int start_point_switch_R=5;
+const int up_button=12;   // Up button
+const int down_button=11; // down button
+const int cal_button=8; // calibrate the hand guide to start position
+// --------------------------Bounce----------------------------
+Bounce forw = Bounce( up_button,2 ); 
+Bounce back = Bounce( down_button,2 ); 
+Bounce cal = Bounce( cal_button,2 ); 
 //---------------motor C I/O for hand grip-----------
 const int DIR_C=50;
 const int PWM_C=6;
-const int Max_speed_h=200; // maximum speed of hand grip          //----------------------------------------------Speed hand grip
+const int Max_speed_h=255; // maximum speed of hand grip          //----------------------------------------------Speed hand grip
 const int i=200;
 const int Max_speed_lift=255; // maximum speed for lift and down //-----------------------------------------------Speed lift or lower
-//---------------LED output-----------------------------
-const int LED_low=24;
-const int LED_midle=26;
-const int LED_high=28;
 //-----------------
 const int hallPinA_1 = 2;     // A_the number of the hall effect sensor pin
 const int hallPinA_2 = 3;    //// A_the number of the hall effect sensor pin, it is digital input only referens direction
@@ -64,7 +63,7 @@ int status=LOW;
 int hall_counter=0;
 int hall_real=0;
 int forward, backward, calibrate;
-const int start_position=110; ///-----------------------------------------------------Start Position//////////////////////////////////////////////////////////////////////////////////
+const int start_position=150; ///-----------------------------------------------------Start Position//////////////////////////////////////////////////////////////////////////////////
 int duty_a_backward=0;
 int duty_a_forward=0;
 int duty_c_h_forward=0;
@@ -81,15 +80,7 @@ enum my_position {
 
 enum my_position my_current_position;
 
-char stop_posion[] = "arduino";
 
-enum stop_position {
-  stop_position_low,
-  stop_position_midle,
-  stop_position_high,
-};
-
-enum stop_position my_stop_position;
 
 /////////////////////////////////////
 
@@ -99,9 +90,8 @@ int stop_flag_L=0;
 
 int sensorPin = A0;    // select the input pin for the potentiometer
 int sensorValue = 0;  // variable to store the value coming from the sensor
-int stop_position=100;//---------------------------------------------------------------Stop position----------------------------------------------------
+int stop_position=110;//---------------------------------------------------------------Stop position----------------------------------------------------
 int button_check=0;
-int set_status=0;
 
 void setup()
 {
@@ -118,12 +108,9 @@ void setup()
   pinMode(PWM_A, OUTPUT);
   pinMode(PWM_B, OUTPUT);
   pinMode(PWM_C, OUTPUT);
-  pinMode(start_point_switch,INPUT);
-  pinMode(switch_for_hand_grip,INPUT);
-  pinMode(Set_status,INPUT);
-  pinMode(LED_low, OUTPUT);
-  pinMode(LED_midle,OUTPUT);
-  pinMode(LED_high,OUTPUT);
+  pinMode(start_point_switch_L,INPUT);
+  pinMode(start_point_switch_R,INPUT);
+  pinMode(power_off,INPUT);
   //value= EEPROM.read(address);
    hall_A1_counter=EEPROMReadInt(0);
         // leave other bits as set by arduino init() in wiring.c
@@ -145,50 +132,38 @@ void setup()
 void loop()
 {
   
+  
+  forw.update ( );
+  back.update ( );
+  cal.update ( );
   Serial.println(hall_A1_counter);
   sensorValue = analogRead(sensorPin);      // Read value from the potentiometer 
   attachInterrupt(0, hall_A, RISING);
-  calibrate=digitalRead(cal_button);        //Reading the cal-button
-  forward=digitalRead(up_button);           //Reading the forward button 
-  backward=digitalRead(down_button);        //Reading the backward button
+  calibrate=cal.read();        //Reading the cal-button
+  forward=forw.read();          //Reading the forward button 
+  backward=back.read();          //Reading the backward button
   float handguide_position = sensorValue/4;  // maps 0-1024 to 0-256   value from potentiometer
-  int dada=digitalRead(switch_for_hand_grip);
+ // int dada=digitalRead(start_point_switch_R);
   
-  
-  if (digitalRead(Set_status)==HIGH)  {
+  if (digitalRead(power_off)==HIGH)  {
+    EEPROMWriteInt(0, hall_A1_counter);
     delay(300);
-    set_status++;
-    while(digitalRead(Set_status)==LOW)
-    if (status>=3) set_status=0; 
-    
   }
-  
-  if(set_status=0) { my_stop_position==stop_position_low; digitalWrite(LED_low,HIGH); }
-  if(set_status=1) { my_stop_position==stop_position_midle; digitalWrite(LED_midle,HIGH);}
-  if(set_status=2) { my_stop_position==stop_position_high; digitalWrite(LED_high,HIGH);} 
-//  if (digitalRead(Set_status)==HIGH)  {
-//    EEPROMWriteInt(0, hall_A1_counter);
-//    delay(300);
-//  }
   
     //--------------------------------calibration Routin Start here------------------------------------------------------
                                                if(calibrate==HIGH) 
-                                               {  button_check=1;
-                                                 delay(100);
-                                                 if(calibrate==LOW) button_check=0;
-                                                 if(calibrate==HIGH && button_check==1)
-                                                 {
+                                               { 
                                                          if (handguide_position<start_position)
                                                          {
                                                           
                                                            digitalWrite(DIR_C, LOW);
-                                                           analogWrite(PWM_C, 80);
+                                                           analogWrite(PWM_C, 150);
                                                                        }
                                                          if (handguide_position>=start_position)
                                                          {
                                                            
                                                            digitalWrite(DIR_C, HIGH);
-                                                           analogWrite(PWM_C, 80);
+                                                           analogWrite(PWM_C, 150);
                                                                      }
                                                                      
                                                          stop_flag_h=1;
@@ -196,45 +171,37 @@ void loop()
                                                          stop_flag_L=1;
                                             
                                                          }
-                                               }
-                                               int sarang_start_position;
-                                             sarang_start_position==start_position%5;
-                                     //Serial.println(start_position);        
-                                          if (handguide_position==start_position&& stop_flag_h==1)
+                                               
+                                           
+                                          if (handguide_position>start_position-5 && handguide_position<start_position+5 && stop_flag_h==1)
                                                {                         
                                                  analogWrite(PWM_C, 0);
                                                  stop_flag_h=0;
-                                                 button_check=0;
                                                }
                                                
                                                
                                                if( stop_flag_L==1)
                                                {     digitalWrite(DIR_A, LOW);
-                                                     analogWrite(PWM_A, 200);
+                                                     analogWrite(PWM_A, 100);
                                                      digitalWrite(DIR_B, LOW);
-                                                     analogWrite(PWM_B, 200);
-                                                 if (digitalRead(start_point_switch)==HIGH)  {
-                                                         button_check=1;
+                                                     analogWrite(PWM_B, 100);
+                                                 if (digitalRead(start_point_switch_L)==HIGH || digitalRead(start_point_switch_R)==HIGH)  {
+                                                         hall_A1_counter=0;
                                                         analogWrite(PWM_A, 0);
-                                                        analogWrite(PWM_B, 0);
-                                                        //delay(100);                                                       
-                                                       if (digitalRead(start_point_switch)==LOW) button_check=0;
-                                                       if (digitalRead(start_point_switch)==HIGH && button_check==1) //hall_A1_counter=0;
-                                                       stop_flag_L=0;
-                                                       button_check=0;
+                                                        analogWrite(PWM_B, 0);                                                          
+                                                        stop_flag_L=0;
+                                                        duty_a_backward=0;
+                                                        duty_b_backward=0;
                                                      }
                                                         
                                                                   }
                                                                         
-                                                if (digitalRead(start_point_switch)==HIGH) 
-                                                {    button_check=1; 
-                                                     //delay(100);
-                                                     if (digitalRead(start_point_switch)==LOW) button_check=0;
-                                                     if (digitalRead(start_point_switch)==HIGH && button_check==1) hall_A1_counter=0;
-                                                       
-                                                               }
-                                              
-                                                 
+      
+                                                           
+                    int left=digitalRead(start_point_switch_L);
+                    int right=digitalRead(start_point_switch_L);
+                   Serial.println(left);
+                   Serial.println(right);                    
                 //*******************************************************Lift start here ***********************************************************
                 
                 if (forward==HIGH)
@@ -247,42 +214,41 @@ void loop()
                           {
                                      
                                  if (handguide_position>start_position-10 && handguide_position<=start_position+10) forward_C();// Handgrip is　going  
-                                 if (handguide_position<start_position-5)
+                                 if (handguide_position<start_position-35)
                                     {
                                       forward_A(); //// lift　is　going 
                                       forward_B(); // lift　is　going 
                                     }
-                                 if (handguide_position<=start_position-10) handgrip_stop_forward(); // // handgrip stops
+                                 if (handguide_position<=start_position-35) handgrip_stop_forward(); // // handgrip stops
                                                
                                    }
                       break;
                     case MY_POSITION_T1:    // your hand is close to the sensor
                       Serial.println("   T1");
-                        
+                                      
                                       forward_A(); // lift　is　going 
                                       forward_B(); // lift　is　going 
-                                      if (handguide_position<=start_position-10) backward_C();
-                                     if (handguide_position>start_position+5)
+                                      if (handguide_position<start_position) backward_C();
+                                      if (handguide_position>start_position-40)
                       {
-                        
-                       //analogWrite(PWM_C, 0);
-                      handgrip_stop_backward();
-                      handgrip_stop_forward();
+
+          handgrip_stop_backward();
+           
                        
                         
                       } 
                       break;
                     case MY_POSITION_T2:    // 
                       Serial.println("         T2");
-                      if (handguide_position<start_position) backward_C(); 
+                      //if (handguide_position<start_position) backward_C(); 
                       if (hall_A1_counter>stop_position) stop();
                     
-                      if (handguide_position>start_position+5)
+                      if (handguide_position>start_position-40)
                       {
                         
-                       //analogWrite(PWM_C, 0);
+                      
                       handgrip_stop_backward();
-                      handgrip_stop_forward();
+                     
                        
                         
                       }
@@ -296,30 +262,35 @@ void loop()
 
              if (backward==HIGH)
               {
-                if (digitalRead(start_point_switch)==HIGH)  {
+                if (digitalRead(start_point_switch_L)==HIGH || digitalRead(start_point_switch_R)==HIGH)  {
                       analogWrite(PWM_A, 0);
                       analogWrite(PWM_B, 0);
                       delay(500);
-                      if (digitalRead(start_point_switch)==HIGH) hall_A1_counter=0;
+                      if (digitalRead(start_point_switch_L)==HIGH || digitalRead(start_point_switch_R)==HIGH) hall_A1_counter=0;
                       duty_a_backward=0;
                       duty_b_backward=0;
                     }
                     switch (my_current_position) {
                     case MY_POSITION_T0:    // your hand is on the sensor
-                      Serial.println("T0");    
+                      Serial.println("T0");  
+                                 
                                  digitalWrite(DIR_C, HIGH);   
-                                 if ( handguide_position>=start_position) analogWrite(PWM_C, 90);// Handgrip is　going  
-                                 if (hall_A1_counter<=14) stop_end();
-                                 if (handguide_position>start_position-10 && handguide_position<=start_position+10) analogWrite(PWM_C, 0);          
+                                 if ( handguide_position>start_position+15) forward_C();// Handgrip is　going
+                                  else  analogWrite(PWM_C, 0); 
+                                 if (hall_A1_counter<=100) stop_end();
+                                 if (handguide_position<=start_position+15) handgrip_stop_forward();          
                       break;
                     case MY_POSITION_T1:    // 
                       Serial.println("   T1");
                         my_current_position=MY_POSITION_T1;
+                        if (hall_A1_counter<=100) stop_end();
                         digitalWrite(DIR_C, HIGH);   
-                                 if ( handguide_position>=start_position) analogWrite(PWM_C, 90);// Handgrip is　going  
-                                 backward_A();
-                                 backward_B();
-                                 if (handguide_position>start_position-10 && handguide_position<=start_position+10) analogWrite(PWM_C, duty_a_forward);                           
+                                 if ( handguide_position>start_position+15) forward_C();// Handgrip is　going  
+                                 
+//                                 backward_A();
+//                                 backward_B();
+                                 if (hall_A1_counter<=100) stop_end();
+                                 if (handguide_position<=start_position+15) handgrip_stop_forward();                           
                       break;
                     case MY_POSITION_T2:    // 
                       Serial.println("         T2");
@@ -351,37 +322,12 @@ void loop()
             stop();
             handgrip_stop_forward();
             handgrip_stop_backward();
-            int i=200;
+            
           }
 
-          if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
-          if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
+          if (hall_A1_counter>=-50&& hall_A1_counter<=2) my_current_position = MY_POSITION_T0;
+          if (hall_A1_counter>2&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
           if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
-          
-          switch (my_stop_position) {
-            case stop_position_low:
-                  stop_position=100;
-                  if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
-                  if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
-                  if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
-             break;
-             case stop_position_midle:
-                  if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
-                  if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
-                  if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
-                 stop_position=110;
-             break;
-             case stop_position_high:
-                 stop_position=120;
-                 if (hall_A1_counter>=-50&& hall_A1_counter<=30) my_current_position = MY_POSITION_T0;
-                 if (hall_A1_counter>30&& hall_A1_counter<=stop_position) my_current_position = MY_POSITION_T1;
-                 if (hall_A1_counter>stop_position&& hall_A1_counter<=150) my_current_position = MY_POSITION_T2;
-             break;
-            
-            default:    // 
-                      
-                      break;
-                                              }
           
  //delay(20);              
 //Serial.println(hall_A1_counter);       
@@ -458,7 +404,7 @@ else
  duty_c_h_forward = Max_speed_h;
  
   analogWrite(PWM_C, duty_c_h_forward);
-  delay(2);
+  //delay(2);
 }
 
 //------------------function Motor C backward ------
@@ -473,7 +419,7 @@ void backward_C()
   duty_c_h_backward = Max_speed_h;
   
   analogWrite(PWM_C, duty_c_h_backward);
-  delay(2);
+  //delay(2);
 }
 
 //------------------Stop A&B Motor ------
@@ -500,7 +446,7 @@ void handgrip_stop_forward()
  
   if (duty_c_h_forward >= 1) {
     analogWrite(PWM_C, duty_c_h_forward--);
-    delay(1);
+    //delay(1);
   }
 }
  void handgrip_stop_backward()
@@ -514,15 +460,15 @@ void handgrip_stop_forward()
 void stop_end()
 {
  
-  if (duty_a_forward >= 1) {
+  if (duty_a_forward >= 50) {
     analogWrite(PWM_A, duty_a_forward--);
-    analogWrite(PWM_B, duty_b_forward--);
-    delay(8);
+    //analogWrite(PWM_B, duty_b_forward--);
+    delay(15);
   }
  
-  if (duty_a_backward >= 1) {
+  if (duty_a_backward >= 50) {
     analogWrite(PWM_A, duty_a_backward--);
-    analogWrite(PWM_B, duty_b_backward--);
-    delay(8);
+    //analogWrite(PWM_B, duty_b_backward--);
+    delay(15);
   }
 }
